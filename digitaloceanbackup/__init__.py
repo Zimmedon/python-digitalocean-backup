@@ -62,6 +62,7 @@ class Backup(object):
             ssh_key: str - ssh key file (full path/key_name) NO PASSWORD ACCESS
             remote_dirs: list() - list of directories to rsync from droplet to local
             rsync_excludes: list() - list of  rsync excludes
+            rsync_extra_args: list() - list of additional arguments to pass to rsync
             snapshot_hour: int - the hour of day to create a snapshot
             keep_snapshots: int - number of backup snapshots to keep
             backup_dir: str - the local folder for your droplet backups
@@ -74,6 +75,7 @@ class Backup(object):
         self.ssh_key = ''  # ssh key
         self.remote_dirs = []  # droplet directories to rsync
         self.rsync_excludes = []  # excludes for rsync
+        self.rsync_extra_args = [] # Pass additional arguments to rsync
         self.freshlog = False  # start a new log if true
         self.use_ip = False  # use ip instead of droplet name for ssh
         self.user = getpass.getuser()  # local system username
@@ -325,6 +327,10 @@ class Backup(object):
                     if self.__remote_dir_check(remote_dir) == True:
                         complete = False
                         params = '-e "ssh -oStrictHostKeyChecking=no -i %s"' % self.ssh_key
+
+                        # Additional args
+                        for arg in self.rsync_extra_args:
+                            params = "%s %s" % (params, arg)
 
                         # This is the actual rsync command being sent.
                         process = '%s %s %s %s@%s:%s/ %s%s' % (

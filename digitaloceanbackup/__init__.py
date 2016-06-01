@@ -36,7 +36,7 @@ class DigitalOcean(object):
             token = TOKEN
         """
 
-        self.config = "%s/.digitalocean" % os.path.expanduser("~")
+        self.config = os.path.join(os.path.expanduser("~"), '.digitalocean')
         self.__dict__.update(kwargs)
 
         config = ConfigParser()
@@ -80,7 +80,7 @@ class Backup(object):
         self.use_ip = False  # use ip instead of droplet name for ssh
         self.user = getpass.getuser()  # local system username
         self.home = os.path.expanduser('~')  # local system home path
-        self.backup_dir = '%s/Droplets' % self.home  # backup dir
+        self.backup_dir = os.path.join(self.home, 'Droplets')  # backup dir
         self.snapshot_hour = 25  # hour of day to take snapshot
         self.keep_snapshots = 0  # number of snapshots to keep
         self.debug = False  # debug flag
@@ -113,7 +113,7 @@ class Backup(object):
 
             # Set the default backup_dir to $HOME/Droplets/droplet.name.
             if self.droplet.name not in self.backup_dir:
-                self.backup_dir = '%s/%s' % (
+                self.backup_dir = os.path.join(
                     self.backup_dir, self.droplet.name)
 
             # Create the backup_dir if it doesn't exist.
@@ -124,7 +124,7 @@ class Backup(object):
             self.ssh_key = self.__find_ssh_key()
 
             # Set the log file name.
-            self.logfile = '%s/%s' % (self.backup_dir, '_backup_log.md')
+            self.logfile = os.path.join(self.backup_dir, '_backup_log.md')
             self.success = self.__rsync()
         else:
             sys.exit('No droplet specified for backup.\n')
@@ -151,9 +151,9 @@ class Backup(object):
     # Try to loacate and return the full ssh_key path.
 
     def __find_ssh_key(self):
-        this_path = '%s/%s' % (os.getcwd(), self.ssh_key)
-        home_path = '%s/%s' % (self.home, self.ssh_key)
-        ssh_path = '%s/.ssh/%s' % (self.home, self.ssh_key)
+        this_path = os.path.join(os.getcwd(), self.ssh_key)
+        home_path = os.path.join(self.home, self.ssh_key)
+        ssh_path = os.path.join(self.home, '.ssh', self.ssh_key)
         paths = [self.ssh_key, this_path, home_path, ssh_path]
         for path in paths:
             self.logger.debug('LOOKING FOR ssh_key in ' + path)

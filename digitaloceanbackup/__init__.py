@@ -317,51 +317,52 @@ class Backup(object):
                     update_every_seconds=self.delay)
 
             if self.__bin_checks():
-                rsync = 'rsync -avz --update'
+                rsync = 'rsync -avzR --update'
                 excludes = ''
 
                 for exclude in self.rsync_excludes:
                     excludes = '%s--exclude "%s" ' % (excludes, exclude)
 
+                includes = '%s@%s' % (self.ssh_user, self.droplet.name)
                 for remote_dir in self.remote_dirs:
                     if self.__remote_dir_check(remote_dir) == True:
                         complete = False
-                        params = '-e "ssh -oStrictHostKeyChecking=no -i %s"' % self.ssh_key
+                        includes = '%s:%s ' % (includes, remote_dir)
 
-                        # Additional args
-                        for arg in self.rsync_extra_args:
-                            params = "%s %s" % (params, arg)
+                complete = False
+                params = '-e "ssh -oStrictHostKeyChecking=no -i %s"' % self.ssh_key
 
-                        # This is the actual rsync command being sent.
-                        process = '%s %s %s %s@%s:%s/ %s%s' % (
-                            rsync,
-                            excludes,
-                            params,
-                            self.ssh_user,
-                            self.droplet.name,
-                            remote_dir,
-                            self.backup_dir,
-                            remote_dir
-                        )
+                # Additional args
+                for arg in self.rsync_extra_args:
+                    params = "%s %s" % (params, arg)
 
-                        output = self.__run_process(process)
+                # This is the actual rsync command being sent.
+                process = '%s %s %s %s %s' % (
+                    rsync,
+                    excludes,
+                    params,
+                    includes,
+                    self.backup_dir
+                )
 
-                        # Format the output for markdown.
-                        output = '%s\n' % output
-                        output = output.replace('\nsent', 'sent')
-                        output = output.replace(' \n', '\n')
-                        output = output.replace(
-                            'receiving file list ... done', '')
-                        output = output.replace('\n', '\n* ')
-                        output = output.replace('\n* \n', ' ')
-                        output = output.replace(' * ', '')
+                output = self.__run_process(process)
 
-                        # Log the markdown output.
-                        self.__log('_syncing %s..._ %s\n' %
-                                   (remote_dir, output))
-                        complete = True
-                    else:
-                        complete = True
+                # Format the output for markdown.
+                output = '%s\n' % output
+                output = output.replace('\nsent', 'sent')
+                output = output.replace(' \n', '\n')
+                output = output.replace(
+                    'receiving file list ... done', '')
+                output = output.replace('\n', '\n* ')
+                output = output.replace('\n* \n', ' ')
+                output = output.replace(' * ', '')
+
+                # Log the markdown output.
+                self.__log('_syncing %s..._ %s\n' %
+                           (remote_dir, output))
+                complete = True
+            else:
+                complete = True
         else:
             complete = True
 

@@ -66,9 +66,12 @@ class Backup(object):
             snapshot_hour: int - the hour of day to create a snapshot
             keep_snapshots: int - number of backup snapshots to keep
             backup_dir: str - the local folder for your droplet backups
+            incremental: bool - make incremental backups
+            inc_dir_structure: str - directory structure for incremental backup, relative to backup_dir
             delay: int - api delay between calls
             debug: console logging
         """
+        self.time = datetime.datetime.utcnow() # current time at runtime
         self.success = None  # completion bool
         self.delay = 5  # delay between api calls
         self.ssh_user = ''  # ssh user name
@@ -80,7 +83,16 @@ class Backup(object):
         self.use_ip = False  # use ip instead of droplet name for ssh
         self.user = getpass.getuser()  # local system username
         self.home = os.path.expanduser('~')  # local system home path
-        self.backup_dir = os.path.join(self.home, 'Droplets')  # backup dir
+        self.backup_dir = os.path.join(self.home, 'Droplets') # backup dir
+        self.incremental = False # use incremental backups
+        self.inc_dir_structure = os.path.join(
+            '%s' % self.time.year,
+            '%02d' % self.time.month,
+            '%02d' % self.time.day,
+            '%02d%02d' % (
+                self.time.hour, self.time.minute
+            )
+        ) # incremental backup directory structure
         self.snapshot_hour = 25  # hour of day to take snapshot
         self.keep_snapshots = 0  # number of snapshots to keep
         self.debug = False  # debug flag
@@ -180,10 +192,10 @@ class Backup(object):
 
     # Check for remote directories.
 
-    def __remote_dir_check(self, remote_dir):
+    def __remote_dir_check(self, remote_dir, local_root):
         result = False
         ssh_cmd = 'ssh -oStrictHostKeyChecking=no -i %s' % self.ssh_key
-        local_dir = '%s%s/' % (self.backup_dir, remote_dir)
+        local_dir = '%s%s/' % (local_root, remote_dir)
 
         # If the local_dir doesn't exist, let's ssh into the server and check
         # if the remote_dir exists on the server. If it does, then we'll
@@ -300,7 +312,17 @@ class Backup(object):
 
         return complete
 
-    # The main rsync function.
+    def __setupdir(self, dir):
+        """
+            Check to see if a directory exists and create it if it does not.
+        """
+        try:
+            os.stat(dir)
+            self.logger.debug("Directory '%s' exists." % dir)
+        except:
+            self.logger.debug("Directory '%s' did not exist. Creating..." % dir)
+            os.makedirs(dir)
+
 
     def __rsync(self):
         # Log the Python version.
@@ -317,15 +339,28 @@ class Backup(object):
                     update_every_seconds=self.delay)
 
             if self.__bin_checks():
-                rsync = 'rsync -avzR --update'
+                rsync = 'rsync -avzRu'
                 excludes = ''
+
+                # Incremental (test)
+                if self.incremental == True:
+                    latest_dir = os.path.join(self.backup_dir, 'latest')
+                    rsync = '%s --delete --link-dest=%s' % (
+                        rsync, latest_dir
+                    )
+                    backup_dir_full = os.path.join(self.backup_dir, self.inc_dir_structure)
+                    self.logger.debug('backup is incremental')
+                    local_root = '%s/incoming' % self.backup_dir
+                    self.__setupdir(local_root)
+                else:
+                    local_root = self.backup_dir
 
                 for exclude in self.rsync_excludes:
                     excludes = '%s--exclude "%s" ' % (excludes, exclude)
 
                 includes = '%s@%s' % (self.ssh_user, self.droplet.name)
                 for remote_dir in self.remote_dirs:
-                    if self.__remote_dir_check(remote_dir) == True:
+                    if self.__remote_dir_check(remote_dir, local_root) == True:
                         complete = False
                         includes = '%s:%s ' % (includes, remote_dir)
 
@@ -342,7 +377,7 @@ class Backup(object):
                     excludes,
                     params,
                     includes,
-                    self.backup_dir
+                    local_root
                 )
 
                 output = self.__run_process(process)
@@ -365,6 +400,21 @@ class Backup(object):
                 complete = True
         else:
             complete = True
+
+        # Incremental wrap-up
+        if self.incremental:
+            self.__setupdir(backup_dir_full)
+
+            try:
+                os.rename('%s/incoming' % self.backup_dir, backup_dir_full)
+            except OSError as e:
+                sys.exit('Error: Failed to rename incoming backup directory.')
+
+            try:
+                os.symlink(self.inc_dir_structure, latest_dir)
+            except OSError as e:
+                os.unlink(latest_dir)
+                os.symlink(self.inc_dir_structure, latest_dir)
 
         if self.snapshot_hour != 25:
             complete = self.__take_snapshot()

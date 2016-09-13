@@ -344,13 +344,13 @@ class Backup(object):
                     update_every_seconds=self.delay)
 
             if self.__bin_checks():
-                rsync = 'rsync -avzRu'
+                rsync = 'rsync -avzRu --delete'
                 excludes = ''
 
                 # Incremental (test)
                 if self.incremental == True:
                     latest_dir = os.path.join(self.backup_dir, 'latest')
-                    rsync = '%s --delete --link-dest=%s' % (
+                    rsync = '%s --link-dest=%s' % (
                         rsync, latest_dir
                     )
                     backup_dir_full = os.path.join(self.backup_dir, self.inc_dir_structure)

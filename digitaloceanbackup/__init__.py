@@ -64,6 +64,7 @@ class Backup(object):
             rsync_excludes: list() - list of  rsync excludes
             rsync_extra_args: list() - list of additional arguments to pass to rsync
             snapshot_hour: int - the hour of day to create a snapshot
+            snapshot_online: bool - don't power down droplet to perform snapshot
             keep_snapshots: int - number of backup snapshots to keep
             backup_dir: str - the local folder for your droplet backups
             incremental: bool - make incremental backups
@@ -94,6 +95,7 @@ class Backup(object):
             )
         ) # incremental backup directory structure
         self.snapshot_hour = 25  # hour of day to take snapshot
+        self.snapshot_online = False # keep droplet running for snapshot
         self.keep_snapshots = 0  # number of snapshots to keep
         self.debug = False  # debug flag
 
@@ -281,10 +283,13 @@ class Backup(object):
 
         # Is it time to take a snapshot?
         if (datetime.datetime.today().hour == self.snapshot_hour):
-            off = self.droplet.power_off(return_dict=False).wait(
-                update_every_seconds=30)
+            if not self.snapshot_online:
+                prep = self.droplet.power_off(return_dict=False).wait(
+                    update_every_seconds=30)
+            else:
+                prep = True
 
-            if off == True:
+            if prep:
                 timestamp = str(datetime.datetime.fromtimestamp(
                     int(time.time())).strftime('%Y-%m-%d-%H%M'))
 
